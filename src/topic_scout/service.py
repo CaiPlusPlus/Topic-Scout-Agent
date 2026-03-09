@@ -4,6 +4,7 @@ from datetime import datetime
 
 from .analyzer import analyze_sources
 from .collector import load_file, load_url
+from .llm import LLMEnhancer
 from .models import ResearchRequest, RunRecord, utc_now_iso
 from .normalizer import dedupe_items, normalize_platform
 from .planner import build_report_plan
@@ -12,8 +13,9 @@ from .repository import Repository
 
 
 class TopicScoutService:
-    def __init__(self, repository: Repository) -> None:
+    def __init__(self, repository: Repository, llm_enhancer: LLMEnhancer | None = None) -> None:
         self.repository = repository
+        self.llm_enhancer = llm_enhancer
 
     def ingest_file(self, path: str) -> list:
         items = load_file(path)
@@ -31,6 +33,8 @@ class TopicScoutService:
             raise ValueError("No matching source सामग्री found. Ingest content first or adjust filters.")
         analysis = analyze_sources(request.topic, items, request)
         report = build_report_plan(request.topic, analysis, request)
+        if request.use_llm and self.llm_enhancer is not None:
+            report = self.llm_enhancer.enhance(request.topic, request, items, report)
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
         markdown = render_markdown(request.topic, report, request, len(items))
         report_path = self.repository.write_report(run_id, markdown)
@@ -67,4 +71,3 @@ def _filter_items(items, request: ResearchRequest):
         normalized = {normalize_platform(platform) for platform in request.platforms}
         filtered = [item for item in filtered if item.platform in normalized]
     return filtered
-
