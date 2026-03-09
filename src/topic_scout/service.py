@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 
 from .analyzer import analyze_sources
-from .collector import load_file, load_url
-from .llm import LLMEnhancer
+from .collector import load_file, load_text, load_url
+from .llm import LLMEnhancementError, LLMEnhancer
 from .models import ResearchRequest, RunRecord, utc_now_iso
 from .normalizer import dedupe_items, normalize_platform
 from .planner import build_report_plan
@@ -26,15 +26,25 @@ class TopicScoutService:
         stored = self._store_items([item])
         return stored[0]
 
+    def ingest_text(self, text: str, title: str = "web-note", platform: str = "generic"):
+        item = load_text(text, title=title, platform=platform)
+        stored = self._store_items([item])
+        return stored[0]
+
     def research(self, request: ResearchRequest) -> RunRecord:
         library = self.repository.load_items()
         items = _filter_items(library, request)
         if not items:
-            raise ValueError("No matching source सामग्री found. Ingest content first or adjust filters.")
+            raise ValueError("No matching source content found. Ingest content first or adjust filters.")
         analysis = analyze_sources(request.topic, items, request)
         report = build_report_plan(request.topic, analysis, request)
         if request.use_llm and self.llm_enhancer is not None:
-            report = self.llm_enhancer.enhance(request.topic, request, items, report)
+            try:
+                report = self.llm_enhancer.enhance(request.topic, request, items, report)
+            except LLMEnhancementError as exc:
+                report.generation_mode = "rule-based-fallback"
+                report.generation_notes.append(str(exc))
+                report.generation_notes.append("Fell back to the deterministic planner output.")
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
         markdown = render_markdown(request.topic, report, request, len(items))
         report_path = self.repository.write_report(run_id, markdown)

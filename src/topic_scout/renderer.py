@@ -11,7 +11,19 @@ def render_markdown(topic: str, report: ResearchReport, request: ResearchRequest
         f"- 语气：{request.tone}",
         f"- 平台：{', '.join(request.platforms) if request.platforms else 'auto'}",
         f"- 样本数量：{source_count}",
+        f"- 生成模式：{report.generation_mode}",
         "",
+    ]
+    if report.generation_notes:
+        lines.extend(
+            [
+                "## 生成说明",
+                *_render_list(report.generation_notes),
+                "",
+            ]
+        )
+    lines.extend(
+        [
         "## 主题概览",
         report.topic_summary,
         "",
@@ -33,7 +45,8 @@ def render_markdown(topic: str, report: ResearchReport, request: ResearchRequest
         "## 下一步行动",
         *_render_list(report.next_actions),
         "",
-    ]
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -42,6 +55,7 @@ def render_terminal_summary(run_id: str, report_path: str, report: ResearchRepor
         [
             f"Run ID: {run_id}",
             f"Report: {report_path}",
+            f"Mode: {report.generation_mode}",
             f"Summary: {report.topic_summary}",
             f"Title Ideas: {len(report.title_angles)}",
             f"Outline Ideas: {len(report.outline_suggestions)}",
@@ -51,4 +65,3 @@ def render_terminal_summary(run_id: str, report_path: str, report: ResearchRepor
 
 def _render_list(items: list[str]) -> list[str]:
     return [f"- {item}" for item in items]
-

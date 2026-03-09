@@ -4,9 +4,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from topic_scout.collector import ContentExtractionError, load_file
-from topic_scout.llm import LLMConfigurationError, LLMEnhancer
+from topic_scout.llm import LLMConfigurationError, LLMEnhancementError, LLMEnhancer
 from topic_scout.models import ResearchRequest
 from topic_scout.repository import Repository
 from topic_scout.service import TopicScoutService
@@ -74,10 +75,20 @@ class PipelineTestCase(unittest.TestCase):
             with self.assertRaises(ContentExtractionError):
                 load_file(str(path))
 
-    def test_llm_mode_requires_env(self) -> None:
-        from unittest.mock import patch
+    def test_text_ingest_creates_source_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = TopicScoutService(Repository(tmpdir))
+            item = service.ingest_text("这里是一段待分析的评论素材", title="评论1", platform="xiaohongshu")
+            self.assertEqual(item.source_type, "text")
+            self.assertEqual(item.platform, "xiaohongshu")
 
+    def test_llm_mode_requires_env(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
+            with self.assertRaises(LLMConfigurationError):
+                LLMEnhancer.from_env()
+
+    def test_ollama_mode_requires_model(self) -> None:
+        with patch.dict("os.environ", {"TOPIC_SCOUT_LLM_PROVIDER": "ollama"}, clear=True):
             with self.assertRaises(LLMConfigurationError):
                 LLMEnhancer.from_env()
 
@@ -102,3 +113,24 @@ class PipelineTestCase(unittest.TestCase):
                 )
             )
             self.assertEqual(record.report["topic_summary"], "效率选题 enhanced")
+
+    def test_llm_failure_falls_back_to_rule_output(self) -> None:
+        class BrokenEnhancer:
+            def enhance(self, topic, request, items, draft):
+                raise LLMEnhancementError("provider timeout")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            service = TopicScoutService(Repository(root), llm_enhancer=BrokenEnhancer())
+            service.ingest_file(str(ROOT / "tests" / "fixtures" / "sample_note.txt"))
+            record = service.research(
+                ResearchRequest(
+                    topic="效率选题",
+                    platforms=[],
+                    source_ids=[],
+                    target_audience="独立创作者",
+                    use_llm=True,
+                )
+            )
+            self.assertEqual(record.report["generation_mode"], "rule-based-fallback")
+            self.assertIn("provider timeout", record.report["generation_notes"][0])

@@ -10,6 +10,7 @@ from .models import ResearchRequest
 from .renderer import render_terminal_summary
 from .repository import Repository
 from .service import TopicScoutService
+from .web import serve
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +40,15 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser = subparsers.add_parser("report", help="Show a previous report")
     report_parser.add_argument("run_id")
     report_parser.set_defaults(func=cmd_report)
+
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Run the minimal Web UI",
+        description="Run the minimal Web UI",
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.set_defaults(func=cmd_serve)
     return parser
 
 
@@ -88,6 +98,11 @@ def cmd_report(args, service: TopicScoutService) -> int:
     print(f"Created At: {record.created_at}")
     print(f"Report Path: {record.report_path}")
     print(f"Topic: {record.topic}")
+    return 0
+
+
+def cmd_serve(args, service: TopicScoutService) -> int:
+    serve(service.repository, host=args.host, port=args.port)
     return 0
 
 
