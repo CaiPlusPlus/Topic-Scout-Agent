@@ -53,6 +53,8 @@ class ResearchReport:
     title_angles: list[str]
     outline_suggestions: list[str]
     next_actions: list[str]
+    generation_mode: str = "rule-based"
+    generation_notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

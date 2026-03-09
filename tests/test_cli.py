@@ -85,3 +85,7 @@ class CLITestCase(unittest.TestCase):
             self.assertEqual(report.returncode, 0, report.stderr)
             self.assertIn("Report Path:", report.stdout)
 
+    def test_serve_help_exposes_web_command(self) -> None:
+        result = self.run_cli("serve", "--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Run the minimal Web UI", result.stdout)
