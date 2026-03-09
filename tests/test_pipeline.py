@@ -75,6 +75,13 @@ class PipelineTestCase(unittest.TestCase):
             with self.assertRaises(ContentExtractionError):
                 load_file(str(path))
 
+    def test_text_ingest_creates_source_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = TopicScoutService(Repository(tmpdir))
+            item = service.ingest_text("这里是一段待分析的评论素材", title="评论1", platform="xiaohongshu")
+            self.assertEqual(item.source_type, "text")
+            self.assertEqual(item.platform, "xiaohongshu")
+
     def test_llm_mode_requires_env(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaises(LLMConfigurationError):

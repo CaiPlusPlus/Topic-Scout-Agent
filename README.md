@@ -16,6 +16,8 @@ Topic Scout Agent is a Python CLI for content marketers who need fast topic rese
 - Optionally enhance the research report with an OpenAI-compatible LLM
 - Switch between `openai-compatible` and `ollama` providers
 - Run a minimal Web UI on top of the same service layer
+- Support a deployment-ready Web entrypoint, Docker image, and Render blueprint
+- Run GitHub Actions CI and issue-driven autofix workflows
 - Persist reports under `runs/<timestamp>/report.md`
 - View previously generated reports by run id
 
@@ -29,6 +31,7 @@ topic-scout ingest file ./examples/sample.txt
 topic-scout research "职场效率" --audience "独立创作者"
 topic-scout research "职场效率" --audience "独立创作者" --llm
 topic-scout serve --host 127.0.0.1 --port 8000
+python -m topic_scout.deploy
 ```
 
 If you do not want to install the package yet, you can run the module directly:
@@ -74,6 +77,32 @@ topic-scout research "职场效率" --llm
 - Content library: `.topic_scout/library.json`
 - Run metadata: `.topic_scout/runs.json`
 - Markdown reports: `runs/<run_id>/report.md`
+
+## Web UI
+
+- Browser home: `/`
+- Recent materials JSON: `/api/library`
+- Recent runs JSON: `/api/runs`
+- Paste-source ingestion is available directly in the page, so deployment users do not need local file paths just to test the product.
+
+## CI/CD
+
+- CI: [`.github/workflows/ci.yml`](/Users/itlc00010/.codex/worktrees/1122/Playground/.github/workflows/ci.yml)
+- Render deploy hook: [`.github/workflows/deploy-render.yml`](/Users/itlc00010/.codex/worktrees/1122/Playground/.github/workflows/deploy-render.yml)
+- Issue autofix workflow: [`.github/workflows/issue-autofix.yml`](/Users/itlc00010/.codex/worktrees/1122/Playground/.github/workflows/issue-autofix.yml)
+
+Required GitHub secrets for deployment and autofix:
+
+- `RENDER_DEPLOY_HOOK_URL`
+- `AUTOFIX_API_KEY`
+- `AUTOFIX_MODEL`
+- `AUTOFIX_API_BASE` (optional for OpenAI-compatible backends)
+
+Autofix flow:
+
+1. Open a bug issue using the template.
+2. Add the `autofix` label when you want AI to attempt a repair.
+3. GitHub Actions generates a fix branch, runs tests, and opens a draft PR for your review.
 
 ## Development
 

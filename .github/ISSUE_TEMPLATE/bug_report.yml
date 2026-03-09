@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a bug for CI triage and autofix
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Steps, commands, or UI path
+      placeholder: |
+        1. Open ...
+        2. Run ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected files or modules
+      description: Optional hints for the autofix workflow
+  - type: markdown
+    attributes:
+      value: "Add the `autofix` label after review if this issue should enter the automatic repair workflow."
+

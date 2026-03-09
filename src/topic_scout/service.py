@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from .analyzer import analyze_sources
-from .collector import load_file, load_url
+from .collector import load_file, load_text, load_url
 from .llm import LLMEnhancementError, LLMEnhancer
 from .models import ResearchRequest, RunRecord, utc_now_iso
 from .normalizer import dedupe_items, normalize_platform
@@ -23,6 +23,11 @@ class TopicScoutService:
 
     def ingest_url(self, url: str):
         item = load_url(url)
+        stored = self._store_items([item])
+        return stored[0]
+
+    def ingest_text(self, text: str, title: str = "web-note", platform: str = "generic"):
+        item = load_text(text, title=title, platform=platform)
         stored = self._store_items([item])
         return stored[0]
 

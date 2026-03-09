@@ -111,6 +111,21 @@ def load_file(path: str) -> list[ContentItem]:
     raise ContentExtractionError(f"Unsupported file type: {suffix}")
 
 
+def load_text(text: str, title: str = "web-note", platform: str = "generic") -> ContentItem:
+    if not text.strip():
+        raise ContentExtractionError("Text input cannot be empty")
+    return _build_item(
+        source_type="text",
+        platform=platform,
+        url=None,
+        title=title or "web-note",
+        author=None,
+        published_at=None,
+        tags=[],
+        raw_text=text,
+    )
+
+
 def _load_csv(path: pathlib.Path) -> list[ContentItem]:
     items: list[ContentItem] = []
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -212,4 +227,3 @@ def _infer_platform_from_url(netloc: str) -> str:
     if "douyin" in lowered:
         return "douyin"
     return "generic"
-

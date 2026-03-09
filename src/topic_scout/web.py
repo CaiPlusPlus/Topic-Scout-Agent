@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 import urllib.parse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +21,7 @@ class TopicScoutWebApp:
     def render_home(self, flash: str | None = None) -> str:
         items = list(reversed(self.repository.load_items()))[:12]
         runs = self._load_recent_runs()
+        stats = self._build_stats(items, runs)
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -33,25 +35,38 @@ class TopicScoutWebApp:
       --ink: #1c1917;
       --muted: #6b5f53;
       --accent: #b45309;
+      --accent-2: #1d4ed8;
       --line: #eadfcd;
+      --card: rgba(255, 250, 242, 0.82);
     }}
-    body {{ margin: 0; font-family: Georgia, "Hiragino Sans GB", serif; background: radial-gradient(circle at top, #fff7ed, var(--bg)); color: var(--ink); }}
+    body {{ margin: 0; font-family: Georgia, "Hiragino Sans GB", serif; background:
+      radial-gradient(circle at top, #fff7ed 0%, rgba(255,247,237,0.6) 18%, transparent 50%),
+      linear-gradient(135deg, #f5f1e8 0%, #f3ece1 100%); color: var(--ink); }}
     .page {{ max-width: 1100px; margin: 0 auto; padding: 32px 20px 60px; }}
-    .hero {{ display: grid; gap: 8px; margin-bottom: 28px; }}
+    .hero {{ display: grid; gap: 12px; margin-bottom: 28px; }}
     .hero h1 {{ margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 0.95; }}
     .hero p {{ margin: 0; color: var(--muted); max-width: 720px; }}
+    .hero-bar {{ display: flex; flex-wrap: wrap; gap: 10px; }}
+    .pill {{ display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.7); padding: 8px 12px; font-size: 0.92rem; color: var(--muted); }}
     .flash {{ background: #fffbeb; border: 1px solid #facc15; padding: 12px 14px; margin: 18px 0; border-radius: 12px; }}
+    .stats {{ display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 18px 0 26px; }}
+    .stat {{ background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,248,240,0.95)); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 18px 36px rgba(120, 53, 15, 0.08); }}
+    .stat strong {{ display: block; font-size: 1.8rem; }}
     .grid {{ display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }}
-    .panel {{ background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 16px 40px rgba(120, 53, 15, 0.06); }}
+    .panel {{ background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 16px 40px rgba(120, 53, 15, 0.06); backdrop-filter: blur(8px); }}
     h2, h3 {{ margin-top: 0; }}
     label {{ display: block; margin: 10px 0 6px; font-size: 0.95rem; color: var(--muted); }}
     input, textarea {{ width: 100%; box-sizing: border-box; border: 1px solid #d6c7b1; border-radius: 12px; padding: 11px 12px; background: #fff; font: inherit; }}
     textarea {{ min-height: 110px; resize: vertical; }}
     button {{ margin-top: 14px; border: none; border-radius: 999px; padding: 11px 18px; background: var(--accent); color: white; font: inherit; cursor: pointer; }}
+    .secondary {{ background: var(--accent-2); }}
     ul {{ padding-left: 18px; margin-bottom: 0; }}
     .meta {{ color: var(--muted); font-size: 0.92rem; }}
     .report-link {{ display: inline-block; margin-top: 8px; }}
     .stack {{ display: grid; gap: 16px; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }}
+    .actions a {{ color: var(--accent-2); text-decoration: none; font-size: 0.95rem; }}
+    .hint {{ margin-top: 8px; color: var(--muted); font-size: 0.9rem; }}
   </style>
 </head>
 <body>
@@ -59,8 +74,19 @@ class TopicScoutWebApp:
     <section class="hero">
       <h1>Topic Scout<br>Minimal Web UI</h1>
       <p>复用现有 service 层，在浏览器里完成素材导入、选题研究和报告查看。默认仍然支持纯规则模式；勾选 LLM 时，会使用当前环境变量里的模型配置。</p>
+      <div class="hero-bar">
+        <span class="pill">AI 自动生成报告</span>
+        <span class="pill">失败自动回退</span>
+        <span class="pill">适合审核流</span>
+      </div>
     </section>
     {self._render_flash(flash)}
+    <section class="stats">
+      <article class="stat"><strong>{stats["items"]}</strong><span>素材总数</span></article>
+      <article class="stat"><strong>{stats["runs"]}</strong><span>研究报告</span></article>
+      <article class="stat"><strong>{stats["platforms"]}</strong><span>活跃平台</span></article>
+      <article class="stat"><strong>{stats["llm_ready"]}</strong><span>LLM 状态</span></article>
+    </section>
     <section class="grid">
       <article class="panel">
         <h2>生成研究报告</h2>
@@ -75,6 +101,7 @@ class TopicScoutWebApp:
           <input id="platforms" name="platforms" placeholder="xiaohongshu,douyin">
           <label><input type="checkbox" name="use_llm" value="1"> 使用 LLM 增强</label>
           <button type="submit">生成报告</button>
+          <p class="hint">研究完成后会保留运行记录，适合你只做最终审核。</p>
         </form>
       </article>
       <article class="panel stack">
@@ -94,6 +121,18 @@ class TopicScoutWebApp:
             <button type="submit">导入 URL</button>
           </form>
         </div>
+        <div>
+          <h2>粘贴素材</h2>
+          <form method="post" action="/ingest/text">
+            <label for="text_title">标题</label>
+            <input id="text_title" name="title" placeholder="例如：用户评论摘录">
+            <label for="text_platform">平台</label>
+            <input id="text_platform" name="platform" placeholder="xiaohongshu">
+            <label for="text_body">正文</label>
+            <textarea id="text_body" name="text" required placeholder="直接粘贴评论、脚本或竞品内容"></textarea>
+            <button class="secondary" type="submit">导入文本</button>
+          </form>
+        </div>
       </article>
     </section>
     <section class="grid" style="margin-top: 18px;">
@@ -108,6 +147,10 @@ class TopicScoutWebApp:
         <ul>
           {self._render_runs(runs)}
         </ul>
+        <div class="actions">
+          <a href="/api/library">查看素材 JSON</a>
+          <a href="/api/runs">查看运行 JSON</a>
+        </div>
       </article>
     </section>
   </div>
@@ -138,6 +181,13 @@ pre {{ white-space: pre-wrap; word-break: break-word; background: #fff; border: 
         item = self.service.ingest_url(url)
         return f"已导入 URL 素材：{item.title}"
 
+    def handle_ingest_text(self, form_data: dict[str, list[str]]) -> str:
+        title = _first_value(form_data, "title") or "web-note"
+        platform = _first_value(form_data, "platform") or "generic"
+        text = _first_value(form_data, "text")
+        item = self.service.ingest_text(text=text, title=title, platform=platform)
+        return f"已导入文本素材：{item.title}"
+
     def handle_research(self, form_data: dict[str, list[str]]) -> str:
         topic = _first_value(form_data, "topic")
         audience = _first_value(form_data, "audience") or "独立创作者"
@@ -164,6 +214,24 @@ pre {{ white-space: pre-wrap; word-break: break-word; background: #fff; border: 
         if not path.is_absolute():
             path = self.repository.root / path
         return path.read_text(encoding="utf-8")
+
+    def render_library_json(self) -> str:
+        payload = [item.to_dict() for item in self.repository.load_items()]
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    def render_runs_json(self) -> str:
+        payload = self.repository._read_json(self.repository.runs_index_path, [])
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    def _build_stats(self, items, runs) -> dict[str, str]:
+        platforms = {item.platform for item in items if item.platform}
+        llm_ready = "Ready" if self.service.llm_enhancer is not None else "Rule only"
+        return {
+            "items": str(len(self.repository.load_items())),
+            "runs": str(len(runs)),
+            "platforms": str(len(platforms) or 1),
+            "llm_ready": llm_ready,
+        }
 
     def _render_items(self, items) -> str:
         if not items:
@@ -207,6 +275,12 @@ def serve(repository: Repository, host: str = "127.0.0.1", port: int = 8000) -> 
                 except FileNotFoundError as exc:
                     self._send_html(app.render_home(flash=html.escape(str(exc))), status=HTTPStatus.NOT_FOUND)
                 return
+            if self.path == "/api/library":
+                self._send_json(app.render_library_json())
+                return
+            if self.path == "/api/runs":
+                self._send_json(app.render_runs_json())
+                return
             self.send_error(HTTPStatus.NOT_FOUND)
 
         def do_POST(self) -> None:
@@ -218,6 +292,8 @@ def serve(repository: Repository, host: str = "127.0.0.1", port: int = 8000) -> 
                     flash = app.handle_ingest_file(form_data)
                 elif self.path == "/ingest/url":
                     flash = app.handle_ingest_url(form_data)
+                elif self.path == "/ingest/text":
+                    flash = app.handle_ingest_text(form_data)
                 elif self.path == "/research":
                     flash = app.handle_research(form_data)
                 else:
@@ -234,6 +310,14 @@ def serve(repository: Repository, host: str = "127.0.0.1", port: int = 8000) -> 
             encoded = body.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def _send_json(self, body: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+            encoded = body.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)

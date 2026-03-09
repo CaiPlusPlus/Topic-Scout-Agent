@@ -36,6 +36,25 @@ class WebTestCase(unittest.TestCase):
             )
             self.assertIn("/report/", flash)
 
+    def test_text_ingest_action_updates_library(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            app = TopicScoutWebApp(Repository(root))
+            flash = app.handle_ingest_text(
+                {"title": ["评论摘录"], "platform": ["xiaohongshu"], "text": ["评论内容很真实，适合做案例。"]}
+            )
+            self.assertIn("已导入文本素材", flash)
+            payload = app.render_library_json()
+            self.assertIn("评论摘录", payload)
+
+    def test_json_views_render_expected_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            app = TopicScoutWebApp(Repository(root))
+            app.service.ingest_text("一段内容", title="样本", platform="douyin")
+            self.assertIn('"title": "样本"', app.render_library_json())
+            self.assertEqual(app.render_runs_json(), "[]")
+
     def test_web_app_shows_fallback_note_after_llm_failure(self) -> None:
         class BrokenEnhancer:
             def enhance(self, topic, request, items, draft):
