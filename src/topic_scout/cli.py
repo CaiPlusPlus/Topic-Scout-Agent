@@ -5,6 +5,7 @@ import json
 import sys
 
 from .collector import ContentExtractionError
+from .llm import LLMConfigurationError, LLMEnhancementError, LLMEnhancer
 from .models import ResearchRequest
 from .renderer import render_terminal_summary
 from .repository import Repository
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_parser.add_argument("--source-id", action="append", default=[])
     research_parser.add_argument("--tone", default="专业但接地气")
     research_parser.add_argument("--audience", default="独立创作者")
+    research_parser.add_argument("--llm", action="store_true", help="Enhance the report with an OpenAI-compatible LLM")
     research_parser.set_defaults(func=cmd_research)
 
     report_parser = subparsers.add_parser("report", help="Show a previous report")
@@ -44,10 +46,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     repository = Repository()
-    service = TopicScoutService(repository)
     try:
+        service = _build_service(repository, args)
         return args.func(args, service)
-    except (FileNotFoundError, ValueError, ContentExtractionError) as exc:
+    except (FileNotFoundError, ValueError, ContentExtractionError, LLMConfigurationError, LLMEnhancementError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
@@ -73,6 +75,7 @@ def cmd_research(args, service: TopicScoutService) -> int:
         source_ids=args.source_id,
         tone=args.tone,
         target_audience=args.audience,
+        use_llm=args.llm,
     )
     record = service.research(request)
     print(render_terminal_summary(record.run_id, record.report_path, _report_from_record(record)))
@@ -105,6 +108,12 @@ def _report_from_record(record):
     return ResearchReport(**record.report)
 
 
+def _build_service(repository: Repository, args) -> TopicScoutService:
+    llm_enhancer = None
+    if getattr(args, "llm", False):
+        llm_enhancer = LLMEnhancer.from_env()
+    return TopicScoutService(repository, llm_enhancer=llm_enhancer)
+
+
 if __name__ == "__main__":
     raise SystemExit(main())
-

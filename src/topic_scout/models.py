@@ -38,6 +38,7 @@ class ResearchRequest:
     source_ids: list[str]
     tone: str = "专业但接地气"
     target_audience: str = "独立创作者"
+    use_llm: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -72,4 +73,3 @@ class RunRecord:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "RunRecord":
         return cls(**payload)
-
